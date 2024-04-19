@@ -1,76 +1,80 @@
-import requests
 from bs4 import BeautifulSoup
+from markdownify import markdownify
+from urllib.request import Request, urlopen
+import PyPDF2
 
-def convert_html_to_markdown(text):
-  soup = BeautifulSoup(text, 'html.parser')
+def parsePDF(conn):
+  
+    try:
+        # Open the PDF file in read binary mode
+        with open(conn, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
 
-  replacements = {
-      "<h1>": "## {text.text.strip()}\n",
-      "<h2>": "### {text.text.strip()}\n",
-      "<h3>": "#### {text.text.strip()}\n",
-      "<b>": "**{text.text.strip()}**",
-      "</b>": "",
-      "<strong>": "**{text.text.strip()}**",
-      "</strong>": "",
-      "<i>": "*{text.text.strip()}*",
-      "<i>": "",
-  }
+            num_pages = len(pdf_reader.pages)
 
-  for tag, replacement in replacements.items():
-    for element in soup.find_all(tag):
-      if tag == "a":  
-        link_text = element.text.strip()
-        link_href = element.get("href")
-        new_element = f"{replacement.format(text=link_text)} [{link_text}]({link_href})"
-      else:
-        new_element = replacement.format(text=element)
-      element.replace_with(new_element)
-  return soup.get_text().strip()
+            # Iterate through all pages and extract text
+            for page_num in range(num_pages):
+                page = pdf_reader.pages[page_num]
+                text = page.extract_text()
 
-def convert_to_markdown_lite(text):
-  """Applies basic markdown formatting (bold, italics, headers) - for plain text"""
-  replacements = {
-      "<h1>": "## ",
-      "<h2>": "### ",
-      "<h3>": "#### ",
-      "<b>": "**",  # Bold
-      "</b>": "**",
-      "<strong>": "**",
-      "</strong>": "**",
-      "<i>": "*",  # Italics
-      "<i>": "*",
-  }
-  for before, after in replacements.items():
-    text = text.replace(before, after)
-  return text.strip()
+                
+                print(text.strip())
+                return text.strip()
 
-def process_input(user_input):
-  """Processes user input based on type (text or URL)"""
-  if isinstance(user_input, str):
-    # Check if it's a URL using a simple validation
-    if user_input.startswith("http"):
-      try:
-        response = requests.get(user_input)
-        response.raise_for_status()  # Raise error for non-2xx status codes
-        content = convert_html_to_markdown(response.text)
-        print(f"**Content from URL:**\n{content}")
-      except requests.exceptions.RequestException as e:
-        print(f"Error fetching URL: {e}")
-    else:
-      # Plain text, convert to markdown 
-      content = convert_to_markdown_lite(user_input)
-      print(content)
+    except FileNotFoundError:
+        print(f"Error: PDF file '{conn}' not found.")
+        return f"Error: PDF file '{conn}' not found."
+
+def parseHTML(conn):
+  content = conn.read().decode("utf-8")
+  soup = BeautifulSoup(content, features="html.parser")
+  
+  html = ""
+  main_content = soup.find("main")
+  if main_content:
+      main_content_html=main_content.prettify()
+      html += main_content_html
   else:
-    # Handle list of URLs
-    for url in user_input:
-      process_input(url)
+      body_content = soup.find("body")
+      if body_content:
+          body_content_html=body_content.prettify()
+          html += body_content_html
 
-# Get user input
-user_input = input("Enter URL(s) or text (separate URLs with commas): ")
 
-# Split input into a list if it contains commas
-if "," in user_input:
-  user_input = user_input.split(",")
+  content = markdownify(html)
+  return content
 
-# Process each input
-process_input(user_input)
+def fetch_content(url):
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0'}
+    req = Request(url, headers=headers)
+    conn = urlopen(req)
+    mimetype=conn.getheader('Content-Type')
+    if "application/pdf" in mimetype:
+      return parsePDF(conn)
+    else:
+      return parseHTML(conn)    
+
+
+def main():
+
+    user_input = input("Enter URLs separated by commas (or plain text): ")
+
+    # Split input by commas, handling potential spaces
+    inputData = [url.strip() for url in user_input.split(",")]
+    outputData = []
+
+    for url in inputData:  
+      try:
+          content = fetch_content(url)
+          if content:
+              print(f"\n**URL:** {url}")
+              print(f"**Content (markdown):**\n{content}")
+          else:
+              print(f"No main or body element found in {url}")
+      except Exception as e:
+          print(f"Error fetching content for {url}: {e}")
+      
+
+
+if __name__ == "__main__":
+    main()
