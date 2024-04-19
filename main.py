@@ -2,10 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 
 def convert_html_to_markdown(text):
-  """Converts basic HTML tags to markdown formatting with link preservation"""
   soup = BeautifulSoup(text, 'html.parser')
 
-  # Replacements for basic markdown elements with tag preservation
   replacements = {
       "<h1>": "## {text.text.strip()}\n",
       "<h2>": "### {text.text.strip()}\n",
@@ -20,7 +18,7 @@ def convert_html_to_markdown(text):
 
   for tag, replacement in replacements.items():
     for element in soup.find_all(tag):
-      if tag == "a":  # Special handling for anchor tags with links
+      if tag == "a":  
         link_text = element.text.strip()
         link_href = element.get("href")
         new_element = f"{replacement.format(text=link_text)} [{link_text}]({link_href})"
@@ -31,7 +29,6 @@ def convert_html_to_markdown(text):
 
 def convert_to_markdown_lite(text):
   """Applies basic markdown formatting (bold, italics, headers) - for plain text"""
-  # (unchanged from original script)
   replacements = {
       "<h1>": "## ",
       "<h2>": "### ",
@@ -60,7 +57,7 @@ def process_input(user_input):
       except requests.exceptions.RequestException as e:
         print(f"Error fetching URL: {e}")
     else:
-      # Plain text, convert to markdown lite
+      # Plain text, convert to markdown 
       content = convert_to_markdown_lite(user_input)
       print(content)
   else:
